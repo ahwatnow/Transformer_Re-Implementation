@@ -22,7 +22,7 @@ class PositionWiseFeedForward(nn.Module):
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=drop_prob)
     
-    def forward(self, x):
+    def forward(self, x): 
         x = self.linear1(x)
         print(f"x after first linear layer: {x.size()}")
         x = self.relu(x)
@@ -32,6 +32,7 @@ class PositionWiseFeedForward(nn.Module):
         x = self.linear2(x)
         print(f"x after 2nd linear layer: {x.size()}")
         return x 
+
 
 class MultiHeadAttention():
     def __init__(self, d_model, num_heads):
@@ -62,12 +63,36 @@ class MultiHeadAttention():
         return out
 
 
+class MultiHeadCrossAttention(nn.Module):
 
+    def __init__(self, d_model, num_heads):
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.head_dim = d_model / num_heads
+        self.kv_layer = nn.Linear(d_model, 2*d_model)
+        self.q_layer = nn.Linear(d_model, d_model)
+        self.linear_layer = nn.Linear(d_model, d_model)
+    
+    def forward(self, x, y, mask=None):
+        batch_size, sequence_length, d_model = x.size()
+        print(f"x size(): {x.size()}")
+        kv = self.kv_layer(x)
+        print(f"kv.size(): {kv.size()}")
+        q = self.q_layer(y)
+        print(f"q.size(): {q.size()}")
+        kv = kv.reshape(batch_size, sequence_length, self.num_heads, 2*self.head_dim)
+        q = q.reshape(batch_size, sequence_length, self.num_heads, self.head_dim)
+        kv = kv.permute(0, 2, 1, 3)
+        q = q.permute(0, 2, 1, 3)
+        k, v = kv.chunk(2, dim=-1)
+        values, attention = scaled_dot_product(q, k, v, mask) # don't need mask for cross attention
+        print(f"values : {values}, attention : {attention}")
+        values = values.reshape(batch_size, sequence_length, d_model)
+        out = self.linear_layer(values)
+        print(f"out after passing through linear layer {out.size()}")
+        return out
 
-
-
-
-class MultiHeadCrossAttention():
 
 class LayerNormalization(nn.Module):
 
@@ -79,9 +104,18 @@ class LayerNormalization(nn.Module):
         self.beta = nn.Parameter(torch.zeros(parameters_shape))
 
     def forward(self, inputs):     
-        dims = [-(i + 1) for i in range(len(self.parameters_shape))]
+        dims = [-(i + 1) for i in range(len(self.parameters_shape))] #[-1]
         print(f"dims: {dims}")
         mean = inputs.mean(dim=dims, keepdim=True)
+        print(f"Mean ({mean.size()})")
+        var = ((inputs - mean) ** 2).mean(dim=dims, keepdim=True)
+        std =  (var + self.eps).sqrt()
+        print(f"Standard Deviation ({std.size()})")
+        y = (inputs - mean) / std
+        print(f"y: {y.size()}")
+        out = self.gammma * y + self.beta
+        print(f"out: {out.size()}")
+        return out
 
 
 class DecoderLayer(nn.Module):
@@ -109,10 +143,38 @@ class DecoderLayer(nn.Module):
         
         _y = y 
         print("Cross Attention")
+        y = self.encoder_decoder_attention(x, y, mask=None)
+        print("Drop Out 2")
+        y = self.dropout2(y)
+        print("Add + Layer Normalization 2")
+        y = self.norm2(y + _y)
 
-class SequentialDecoder():
+        _y = y
+        print("Feed Forward 1")
+        y = self.ffn(y)
+        print("Drop Out 3")
+        y = self.dropout3(y)
+        print("Add + Layer Normalization 3")
+        y = self.norm3(y + _y)
+        return y
+
+
+class SequentialDecoder(nn.Sequential):
+    def forward(self, *inputs):
+        x, y, mask = inputs 
+        for module in self._modules.values():
+            y = module(x, y= mask) 
+        return y 
+    
 
 class Decoder(nn.Module):
+    def __init__(self, d_model, ffn_hidden, num_heads, drop_prob, num_layers=1):
+        super().__init__()
+        self.layers = SequentialDecoder(*[DecoderLayer(d_model, ffn_hidden, num_heads, drop_prob)
+                                          for _ in range(num_layers)])
 
+    def forward(self, x, y, mask):
+        y = self.layers(x, y, mask)
+        return y
 
         
