@@ -1,0 +1,9 @@
+model:
+  architecture: "transformer"
+  num_layers: 6
+  hidden_size: 512
+
+training:
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 10
