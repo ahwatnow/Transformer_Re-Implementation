@@ -48,7 +48,7 @@ class SentenceEmbedding(nn.Module):
         self.END_TOKEN = END_TOKEN
         self.PADDING_TOKEN = PADDING_TOKEN
 
-    def batch_tokenize(self, batch, start_token, end_token)
+    def batch_tokenize(self, batch, start_token, end_token):
         
         def tokenize(sentence, start_token, end_token):
             sentence_word_indices = [self.language_to_index[token] for token in list(sentence)]
@@ -97,7 +97,7 @@ class MultiHeadAttention(nn.Module):
 
 class LayerNormalization(nn.Module):
 
-    def __init__(self, parameters_shape, eps=1e-5)
+    def __init__(self, parameters_shape, eps=1e-5):
         super().__init__()
         self.parameters_shape = parameters_shape
         self.eps = eps
